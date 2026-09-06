@@ -13,6 +13,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [admin, setAdmin] = useState(false);
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -20,19 +21,46 @@ export default function AdminPage() {
     setLoading(true);
     setMessage("");
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
+    if (error || !data.session) {
       setMessage("Nesprávny email alebo heslo.");
       setLoading(false);
       return;
     }
 
+    const response = await fetch("/api/admin/check", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${data.session.access_token}`,
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      await supabase.auth.signOut();
+      setMessage(
+        result.error || "Nemáš oprávnenie administrátora."
+      );
+      setLoading(false);
+      return;
+    }
+
+    setAdmin(true);
     setMessage("Prihlásenie úspešné. Vitaj v administrácii SDcar Servis! 🔧");
     setLoading(false);
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    setAdmin(false);
+    setMessage("");
+    setEmail("");
+    setPassword("");
   }
 
   return (
@@ -82,96 +110,141 @@ export default function AdminPage() {
             Administrácia
           </h1>
 
-          <p style={{ color: "#666", margin: 0 }}>
-            Prihlásenie pre SDcar Servis
-          </p>
-        </div>
-
-        <form onSubmit={handleLogin}>
-          <label
-            style={{
-              display: "block",
-              marginBottom: "8px",
-              fontWeight: "600",
-            }}
-          >
-            E-mail
-          </label>
-
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@email.sk"
-            required
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "13px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-              marginBottom: "18px",
-              fontSize: "16px",
-            }}
-          />
-
-          <label
-            style={{
-              display: "block",
-              marginBottom: "8px",
-              fontWeight: "600",
-            }}
-          >
-            Heslo
-          </label>
-
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "13px",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-              marginBottom: "20px",
-              fontSize: "16px",
-            }}
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "14px",
-              border: "0",
-              borderRadius: "8px",
-              background: "#111",
-              color: "#fff",
-              fontSize: "16px",
-              fontWeight: "700",
-              cursor: loading ? "wait" : "pointer",
-            }}
-          >
-            {loading ? "Prihlasujem..." : "Prihlásiť sa"}
-          </button>
-
-          {message && (
-            <p
-              style={{
-                marginTop: "20px",
-                textAlign: "center",
-                color: message.includes("úspešné") ? "green" : "red",
-              }}
-            >
-              {message}
+          {!admin ? (
+            <p style={{ color: "#666", margin: 0 }}>
+              Prihlásenie pre SDcar Servis
+            </p>
+          ) : (
+            <p style={{ color: "#666", margin: 0 }}>
+              Administrátor je prihlásený
             </p>
           )}
-        </form>
+        </div>
+
+        {!admin ? (
+          <form onSubmit={handleLogin}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontWeight: "600",
+              }}
+            >
+              E-mail
+            </label>
+
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@email.sk"
+              required
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "13px",
+                border: "1px solid #ccc",
+                borderRadius: "8px",
+                marginBottom: "18px",
+                fontSize: "16px",
+              }}
+            />
+
+            <label
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontWeight: "600",
+              }}
+            >
+              Heslo
+            </label>
+
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "13px",
+                border: "1px solid #ccc",
+                borderRadius: "8px",
+                marginBottom: "20px",
+                fontSize: "16px",
+              }}
+            />
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "14px",
+                border: "0",
+                borderRadius: "8px",
+                background: "#111",
+                color: "#fff",
+                fontSize: "16px",
+                fontWeight: "700",
+                cursor: loading ? "wait" : "pointer",
+              }}
+            >
+              {loading ? "Overujem..." : "Prihlásiť sa"}
+            </button>
+          </form>
+        ) : (
+          <div style={{ textAlign: "center" }}>
+            <div
+              style={{
+                padding: "20px",
+                background: "#f3f4f6",
+                borderRadius: "10px",
+                marginBottom: "20px",
+              }}
+            >
+              <strong>🔐 Admin prístup potvrdený</strong>
+              <p style={{ color: "#666", marginBottom: 0 }}>
+                Tvoj účet má oprávnenie správcu.
+              </p>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              style={{
+                width: "100%",
+                padding: "14px",
+                border: "0",
+                borderRadius: "8px",
+                background: "#e11d48",
+                color: "#fff",
+                fontSize: "16px",
+                fontWeight: "700",
+                cursor: "pointer",
+              }}
+            >
+              Odhlásiť sa
+            </button>
+          </div>
+        )}
+
+        {message && (
+          <p
+            style={{
+              marginTop: "20px",
+              textAlign: "center",
+              color:
+                message.includes("úspešné") ||
+                message.includes("potvrdený")
+                  ? "green"
+                  : "red",
+            }}
+          >
+            {message}
+          </p>
+        )}
       </div>
     </main>
   );
