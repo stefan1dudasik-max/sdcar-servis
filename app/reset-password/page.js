@@ -4,12 +4,14 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
-
 export default function ResetPasswordPage() {
+  const [supabase] = useState(() =>
+    createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+  );
+
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [ready, setReady] = useState(false);
@@ -28,10 +30,9 @@ export default function ResetPasswordPage() {
         setMessage(
           "Odkaz na zmenu hesla je neplatný alebo vypršal. Požiadaj o nový e-mail."
         );
-        return;
+      } else {
+        setReady(true);
       }
-
-      setReady(true);
     }
 
     prepareReset();
@@ -39,7 +40,7 @@ export default function ResetPasswordPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [supabase]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -57,22 +58,25 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.updateUser({
-      password,
-    });
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
 
-    if (error) {
-      setMessage("Heslo sa nepodarilo zmeniť. Požiadaj o nový resetovací e-mail.");
+      if (error) throw error;
+
+      await supabase.auth.signOut();
+      setPassword("");
+      setConfirmPassword("");
+      setReady(false);
+      setMessage(
+        "Heslo bolo zmenené. Teraz sa môžeš prihlásiť v administrácii."
+      );
+    } catch (error) {
+      setMessage(
+        error.message || "Heslo sa nepodarilo zmeniť. Skús nový resetovací e-mail."
+      );
+    } finally {
       setLoading(false);
-      return;
     }
-
-    await supabase.auth.signOut();
-    setPassword("");
-    setConfirmPassword("");
-    setReady(false);
-    setMessage("Heslo bolo zmenené. Teraz sa môžeš prihlásiť v administrácii.");
-    setLoading(false);
   }
 
   return (
@@ -91,14 +95,15 @@ export default function ResetPasswordPage() {
           width: "100%",
           maxWidth: 420,
           background: "#fff",
+          color: "#111",
           padding: 32,
           borderRadius: 16,
         }}
       >
-        <h1 style={{ marginTop: 0 }}>SDcar Servis</h1>
+        <h1>SDcar Servis</h1>
         <h2>Obnovenie hesla</h2>
 
-        {ready ? (
+        {ready && (
           <form onSubmit={handleSubmit}>
             <label htmlFor="password">Nové heslo</label>
             <input
@@ -146,19 +151,14 @@ export default function ResetPasswordPage() {
                 color: "#fff",
                 border: 0,
                 borderRadius: 8,
-                cursor: loading ? "wait" : "pointer",
               }}
             >
               {loading ? "Ukladám..." : "Zmeniť heslo"}
             </button>
           </form>
-        ) : null}
-
-        {message && (
-          <p role="status" style={{ marginTop: 18 }}>
-            {message}
-          </p>
         )}
+
+        {message && <p role="status">{message}</p>}
 
         {message.startsWith("Heslo bolo zmenené") && (
           <p>
@@ -169,4 +169,3 @@ export default function ResetPasswordPage() {
     </main>
   );
 }
-
